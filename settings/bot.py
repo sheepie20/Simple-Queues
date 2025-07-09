@@ -6,4 +6,4 @@ load_dotenv()
 
 TOKEN = os.getenv('DISCORD_TOKEN')
 INTENTS = discord.Intents.all()
-PREFIX = 'q!'
+PREFIX = 'qq!'

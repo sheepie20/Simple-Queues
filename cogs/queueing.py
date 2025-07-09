@@ -217,7 +217,6 @@ class QueueingCog(commands.Cog):
             await log_channel.send(log_message)
 
     @commands.hybrid_command(name='queue-info', description='Get information about the queueing system.')
-    @commands.has_permissions(administrator=True)
     async def queue_info(self, ctx: commands.Context):
         """Get information about the queueing system."""
         await ctx.defer()
@@ -230,12 +229,24 @@ class QueueingCog(commands.Cog):
             title="Queueing System Information",
             color=random.randint(0, 0xFFFFFF)
         )
-        info_embed.add_field(name="Paused", value="True" if str(guild_settings.get('paused')) == "1" else "False", inline=False)
-        info_embed.add_field(name="Amount to Queue", value=str(guild_settings.get('amount_to_queue')), inline=False)
-        info_embed.add_field(name="Queue Channel", value=f"<#{guild_settings['queue_channel_id']}>", inline=False)
-        info_embed.add_field(name="Session Calls Category", value=f"<#{guild_settings['session_calls_category_id']}>", inline=False)
-        info_embed.add_field(name="Log Channel", value=f"<#{guild_settings['log_channel_id']}>", inline=False)
-        info_embed.add_field(name="Sessions Channel", value=f"<#{guild_settings['sessions_channel_id']}>", inline=False)
+        if ctx.author.guild_permissions.administrator:
+            info_embed.add_field(name="Admin Role", value=f"<@&{guild_settings['admin_role_id']}>", inline=True)
+            info_embed.add_field(name="Queue Category", value=ctx.guild.get_channel(guild_settings['queue_category_id']).mention, inline=True)
+            info_embed.add_field(name="Queue Channel", value=ctx.guild.get_channel(guild_settings['queue_channel_id']).mention, inline=True)
+            info_embed.add_field(name="Session Calls Category", value=ctx.guild.get_channel(guild_settings['session_calls_category_id']).mention, inline=True)
+            info_embed.add_field(name="Log Channel", value=ctx.guild.get_channel(guild_settings['log_channel_id']).mention, inline=True)
+            info_embed.add_field(name="Sessions Channel", value=ctx.guild.get_channel(guild_settings['sessions_channel_id']).mention, inline=True)
+            info_embed.add_field(name="Amount to Queue", value=str(guild_settings.get('amount_to_queue')), inline=True)
+            info_embed.add_field(name="Paused", value="Yes" if str(guild_settings.get('paused')) == "1" else "No", inline=True)
+        else:
+            info_embed.add_field(name="Admin Role", value=f"<@&{guild_settings['admin_role_id']}>", inline=True)
+            info_embed.add_field(name="Queue Category", value=ctx.guild.get_channel(guild_settings['queue_category_id']).mention, inline=True)
+            info_embed.add_field(name="Queue Channel", value=ctx.guild.get_channel(guild_settings['queue_channel_id']).mention, inline=True)
+            info_embed.add_field(name="Session Calls Category", value=ctx.guild.get_channel(guild_settings['session_calls_category_id']).mention, inline=True)
+            info_embed.add_field(name="Sessions Channel", value=ctx.guild.get_channel(guild_settings['sessions_channel_id']).mention, inline=True)
+            info_embed.add_field(name="Amount to Queue", value=str(guild_settings.get('amount_to_queue')), inline=True)
+            info_embed.add_field(name="Paused", value="Yes" if str(guild_settings.get('paused')) == "1" else "No", inline=True)
+        
 
         await ctx.send(embed=info_embed)
 
@@ -262,6 +273,76 @@ class QueueingCog(commands.Cog):
                 f"Amount to queue changed by {ctx.author.mention} ({ctx.author.id}) to {amount_to_queue}."
             )
             await log_channel.send(log_message)
+
+    @commands.hybrid_command(name='edit-settings', description='Edit any queueing system setting. All parameters are optional.')
+    @commands.has_permissions(administrator=True)
+    @app_commands.describe(
+        admin_role="Role ID for admin/moderation",
+        queue_category="Category ID for the queue",
+        queue_channel="Channel ID for the queue voice channel",
+        session_calls_category="Category ID for session calls",
+        log_channel="Channel ID for logging",
+        sessions_channel="Channel ID for session logs",
+        amount_to_queue="Number of users to trigger a session call",
+        paused="Whether the queueing system is paused (true/false)"
+    )
+    async def edit_settings(
+        self,
+        ctx: commands.Context,
+        admin_role: discord.Role = None,
+        queue_category: discord.CategoryChannel = None,
+        queue_channel: discord.VoiceChannel = None,
+        session_calls_category: discord.CategoryChannel = None,
+        log_channel: discord.TextChannel = None,
+        sessions_channel: discord.TextChannel = None,
+        amount_to_queue: int = None,
+        paused: bool = None
+    ):
+        """Edit any queueing system setting. All parameters are optional."""
+        await ctx.defer()
+        guild_settings = await utils.get_queueing_settings(ctx.guild.id)
+        if not guild_settings:
+            await ctx.send("Queueing system is not set up.")
+            return
+
+        # Build new settings dict, using provided values or existing ones
+        new_settings = guild_settings.copy()
+        if admin_role is not None:
+            new_settings['admin_role_id'] = admin_role.id
+        if queue_category is not None:
+            new_settings['queue_category_id'] = queue_category.id
+        if queue_channel is not None:
+            new_settings['queue_channel_id'] = queue_channel.id
+        if session_calls_category is not None:
+            new_settings['session_calls_category_id'] = session_calls_category.id
+        if log_channel is not None:
+            new_settings['log_channel_id'] = log_channel.id
+        if sessions_channel is not None:
+            new_settings['sessions_channel_id'] = sessions_channel.id
+        if amount_to_queue is not None:
+            new_settings['amount_to_queue'] = amount_to_queue
+        if paused is not None:
+            new_settings['paused'] = paused
+
+        await utils.set_queueing_settings(ctx.guild.id, new_settings)
+
+        # Logging
+        log_channel = ctx.guild.get_channel(new_settings['log_channel_id'])
+        if log_channel:
+            log_message = (
+                f"Queueing system settings updated by {ctx.author.mention} ({ctx.author.id}):\n"
+                f"admin_role_id: {new_settings['admin_role_id']}\n"
+                f"queue_category_id: {new_settings['queue_category_id']}\n"
+                f"queue_channel_id: {new_settings['queue_channel_id']}\n"
+                f"session_calls_category_id: {new_settings['session_calls_category_id']}\n"
+                f"log_channel_id: {new_settings['log_channel_id']}\n"
+                f"sessions_channel_id: {new_settings['sessions_channel_id']}\n"
+                f"amount_to_queue: {new_settings['amount_to_queue']}\n"
+                f"paused: {new_settings['paused']}"
+            )
+            await log_channel.send(log_message)
+
+        await ctx.send("Queueing system settings updated.")
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):

@@ -535,6 +535,9 @@ class QueueingCog(commands.Cog):
                                             logging_channel = guild.get_channel(guild_settings['log_channel_id'])
                                             if logging_channel:
                                                 await logging_channel.send(f"Error moving {member.mention} to session call: {str(e)}")
+                                    
+                                    with open(f"queues/queue_{guild.id}.json", "w", encoding="utf-8") as f:
+                                        json.dump(queue_data, f, indent=2)
 
                                     self.session_info[name] = {
                                         'channel_id': session_call_channel.id,

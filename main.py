@@ -9,6 +9,11 @@ bot: commands.Bot = commands.Bot(command_prefix=settings.PREFIX, intents=setting
 
 @bot.event
 async def on_ready():
+    for guild in bot.guilds:
+        with open(f'queues/queue_{guild.id}.json', 'a+', encoding='utf-8') as f:
+            f.seek(0)
+            if not f.read().strip():
+                f.write('{}')
     await utils.init_db()
     print('---')
     cogs = []
